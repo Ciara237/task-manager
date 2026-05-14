@@ -78,6 +78,26 @@ class _TaskListScreenState extends State<TaskListScreen> {
     setState(() => _filter = value);
   }
 
+  void _openAddTaskSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (BuildContext sheetContext) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(sheetContext).bottom,
+          ),
+          child: _AddTaskSheet(
+            onSave: (Task task) {
+              setState(() => _tasks.add(task));
+              Navigator.of(sheetContext).pop();
+            },
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final List<Task> visible = _filteredTasks;
@@ -85,6 +105,10 @@ class _TaskListScreenState extends State<TaskListScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Tasks'),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _openAddTaskSheet,
+        child: const Icon(Icons.add),
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -300,13 +324,224 @@ class _TaskListEmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Try another filter or add tasks when that feature is ready.',
+              'Try another filter or tap + to add a task.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
               textAlign: TextAlign.center,
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AddTaskSheet extends StatefulWidget {
+  const _AddTaskSheet({required this.onSave});
+
+  final ValueChanged<Task> onSave;
+
+  @override
+  State<_AddTaskSheet> createState() => _AddTaskSheetState();
+}
+
+class _AddTaskSheetState extends State<_AddTaskSheet> {
+  static const List<String> _categories = <String>[
+    'School',
+    'Personal',
+    'Health',
+  ];
+  static const List<String> _priorities = <String>[
+    'High',
+    'Medium',
+    'Low',
+  ];
+
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final GlobalKey<FormFieldState<DateTime>> _dueDateFieldKey =
+      GlobalKey<FormFieldState<DateTime>>();
+  final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _descriptionController = TextEditingController();
+
+  String? _category;
+  String? _priority;
+  DateTime? _dueDate;
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDueDate() async {
+    final DateTime initial = _dueDate ?? DateTime.now();
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) {
+      setState(() => _dueDate = picked);
+      _dueDateFieldKey.currentState?.didChange(picked);
+    }
+  }
+
+  void _save() {
+    if (_formKey.currentState?.validate() != true) {
+      return;
+    }
+    final Task task = Task(
+      title: _titleController.text.trim(),
+      description: _descriptionController.text.trim(),
+      category: _category!,
+      priority: _priority!,
+      dueDate: _dueDate!,
+      isCompleted: false,
+    );
+    widget.onSave(task);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final MaterialLocalizations loc = MaterialLocalizations.of(context);
+
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'New task',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 20),
+              TextFormField(
+                controller: _titleController,
+                decoration: const InputDecoration(
+                  labelText: 'Title',
+                  border: OutlineInputBorder(),
+                ),
+                textCapitalization: TextCapitalization.sentences,
+                validator: (String? value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Required';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _descriptionController,
+                decoration: const InputDecoration(
+                  labelText: 'Description',
+                  border: OutlineInputBorder(),
+                  alignLabelWithHint: true,
+                ),
+                minLines: 3,
+                maxLines: 6,
+                keyboardType: TextInputType.multiline,
+                textCapitalization: TextCapitalization.sentences,
+                validator: (String? value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Required';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: _category, // ignore: deprecated_member_use
+                decoration: const InputDecoration(
+                  labelText: 'Category',
+                  border: OutlineInputBorder(),
+                ),
+                items: _categories
+                    .map(
+                      (String c) => DropdownMenuItem<String>(
+                        value: c,
+                        child: Text(c),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (String? value) {
+                  setState(() => _category = value);
+                },
+                validator: (String? value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Required';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: _priority, // ignore: deprecated_member_use
+                decoration: const InputDecoration(
+                  labelText: 'Priority',
+                  border: OutlineInputBorder(),
+                ),
+                items: _priorities
+                    .map(
+                      (String p) => DropdownMenuItem<String>(
+                        value: p,
+                        child: Text(p),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (String? value) {
+                  setState(() => _priority = value);
+                },
+                validator: (String? value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Required';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              FormField<DateTime>(
+                key: _dueDateFieldKey,
+                initialValue: null,
+                validator: (DateTime? value) {
+                  if (value == null) {
+                    return 'Required';
+                  }
+                  return null;
+                },
+                builder: (FormFieldState<DateTime> field) {
+                  return InkWell(
+                    onTap: _pickDueDate,
+                    borderRadius: BorderRadius.circular(4),
+                    child: InputDecorator(
+                      decoration: InputDecoration(
+                        labelText: 'Due date',
+                        border: const OutlineInputBorder(),
+                        errorText: field.errorText,
+                      ),
+                      child: Text(
+                        _dueDate == null
+                            ? 'Tap to select due date'
+                            : loc.formatMediumDate(_dueDate!),
+                        style: Theme.of(context).textTheme.bodyLarge,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: _save,
+                child: const Text('Save Task'),
+              ),
+            ],
+          ),
         ),
       ),
     );
