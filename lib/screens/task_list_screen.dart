@@ -457,7 +457,7 @@ class _AddTaskSheetState extends State<_AddTaskSheet> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: _category, // ignore: deprecated_member_use
+                value: _category,
                 decoration: const InputDecoration(
                   labelText: 'Category',
                   border: OutlineInputBorder(),
@@ -482,7 +482,7 @@ class _AddTaskSheetState extends State<_AddTaskSheet> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: _priority, // ignore: deprecated_member_use
+                value: _priority,
                 decoration: const InputDecoration(
                   labelText: 'Priority',
                   border: OutlineInputBorder(),
