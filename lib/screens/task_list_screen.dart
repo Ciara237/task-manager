@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
 
 import '../models/task.dart';
+import '../theme/app_theme.dart';
+import '../theme/priority_colors.dart';
 import '../widgets/task_card.dart';
+import '../widgets/task_editor_sheet.dart';
+import 'task_detail_screen.dart';
 
 enum _TaskFilter { all, pending, completed }
+
+enum _TaskSort { dueDate, priority }
 
 class TaskListScreen extends StatefulWidget {
   const TaskListScreen({super.key});
@@ -16,6 +22,11 @@ class _TaskListScreenState extends State<TaskListScreen> {
   late List<Task> _tasks;
 
   _TaskFilter _filter = _TaskFilter.all;
+  _TaskSort _sort = _TaskSort.dueDate;
+
+  bool _isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -56,7 +67,13 @@ class _TaskListScreenState extends State<TaskListScreen> {
     ];
   }
 
-  List<Task> get _filteredTasks {
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<Task> get _baseFiltered {
     switch (_filter) {
       case _TaskFilter.all:
         return List<Task>.from(_tasks);
@@ -67,15 +84,119 @@ class _TaskListScreenState extends State<TaskListScreen> {
     }
   }
 
+  List<Task> get _afterSearch {
+    final List<Task> base = _baseFiltered;
+    final String q = _searchQuery.trim().toLowerCase();
+    if (q.isEmpty) {
+      return List<Task>.from(base);
+    }
+    return base
+        .where((Task t) => t.title.toLowerCase().contains(q))
+        .toList();
+  }
+
+  List<Task> get _displayTasks {
+    final List<Task> list = List<Task>.from(_afterSearch);
+    switch (_sort) {
+      case _TaskSort.dueDate:
+        list.sort((Task a, Task b) => a.dueDate.compareTo(b.dueDate));
+        break;
+      case _TaskSort.priority:
+        list.sort((Task a, Task b) {
+          final int c = prioritySortKey(a.priority)
+              .compareTo(prioritySortKey(b.priority));
+          if (c != 0) {
+            return c;
+          }
+          return a.dueDate.compareTo(b.dueDate);
+        });
+        break;
+    }
+    return list;
+  }
+
   int get _total => _tasks.length;
   int get _completed => _tasks.where((Task t) => t.isCompleted).length;
   int get _pending => _tasks.where((Task t) => !t.isCompleted).length;
 
-  double get _progressValue =>
-      _total == 0 ? 0.0 : _completed / _total;
+  double get _progressValue => _total == 0 ? 0.0 : _completed / _total;
 
   void _setFilter(_TaskFilter value) {
     setState(() => _filter = value);
+  }
+
+  void _stopSearching() {
+    setState(() {
+      _isSearching = false;
+      _searchController.clear();
+      _searchQuery = '';
+    });
+  }
+
+  Future<void> _showSortDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext ctx) {
+        return AlertDialog(
+          title: const Text('Sort by'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              RadioListTile<_TaskSort>(
+                title: const Text('Due date (earliest first)'),
+                value: _TaskSort.dueDate,
+                groupValue: _sort,
+                onChanged: (_TaskSort? value) {
+                  if (value != null) {
+                    setState(() => _sort = value);
+                  }
+                  Navigator.of(ctx).pop();
+                },
+              ),
+              RadioListTile<_TaskSort>(
+                title: const Text('Priority (High → Medium → Low)'),
+                value: _TaskSort.priority,
+                groupValue: _sort,
+                onChanged: (_TaskSort? value) {
+                  if (value != null) {
+                    setState(() => _sort = value);
+                  }
+                  Navigator.of(ctx).pop();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _confirmClearAll() async {
+    if (_tasks.isEmpty) {
+      return;
+    }
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) {
+        return AlertDialog(
+          title: const Text('Clear all tasks?'),
+          content: const Text('This will remove every task. This cannot be undone.'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Delete all'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed == true && mounted) {
+      setState(_tasks.clear);
+    }
   }
 
   void _openAddTaskSheet() {
@@ -87,7 +208,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
           padding: EdgeInsets.only(
             bottom: MediaQuery.viewInsetsOf(sheetContext).bottom,
           ),
-          child: _AddTaskSheet(
+          child: TaskEditorSheet(
             onSave: (Task task) {
               setState(() => _tasks.add(task));
               Navigator.of(sheetContext).pop();
@@ -98,13 +219,97 @@ class _TaskListScreenState extends State<TaskListScreen> {
     );
   }
 
+  Future<void> _openTaskDetail(Task task, int taskIndex) async {
+    final TaskDetailPopResult? result =
+        await Navigator.of(context).push<TaskDetailPopResult?>(
+      MaterialPageRoute<TaskDetailPopResult?>(
+        settings: RouteSettings(
+          arguments: TaskDetailArguments(task: task, taskIndex: taskIndex),
+        ),
+        builder: (BuildContext ctx) {
+          final Object? args = ModalRoute.of(ctx)!.settings.arguments;
+          final TaskDetailArguments td = args! as TaskDetailArguments;
+          return TaskDetailScreen(
+            task: td.task,
+            taskIndex: td.taskIndex,
+          );
+        },
+      ),
+    );
+    if (!mounted || result == null) {
+      return;
+    }
+    if (result.deleted) {
+      setState(() {
+        if (result.taskIndex >= 0 && result.taskIndex < _tasks.length) {
+          _tasks.removeAt(result.taskIndex);
+        }
+      });
+      return;
+    }
+    if (result.task != null) {
+      setState(() {
+        if (result.taskIndex >= 0 && result.taskIndex < _tasks.length) {
+          _tasks[result.taskIndex] = result.task!;
+        }
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final List<Task> visible = _filteredTasks;
+    final List<Task> visible = _displayTasks;
+    final bool emptyFromSearch = visible.isEmpty &&
+        _baseFiltered.isNotEmpty &&
+        _searchQuery.trim().isNotEmpty;
 
     return Scaffold(
+      backgroundColor: AppColors.pageBackground,
       appBar: AppBar(
-        title: const Text('Tasks'),
+        leading: _isSearching
+            ? IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: _stopSearching,
+                tooltip: 'Close search',
+              )
+            : null,
+        automaticallyImplyLeading: false,
+        title: _isSearching
+            ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  hintText: 'Filter by title',
+                  border: InputBorder.none,
+                  isDense: true,
+                ),
+                textInputAction: TextInputAction.search,
+                onChanged: (String value) {
+                  setState(() => _searchQuery = value);
+                },
+              )
+            : const Text('TaskFlow'),
+        actions: _isSearching
+            ? null
+            : <Widget>[
+                IconButton(
+                  icon: const Icon(Icons.search),
+                  tooltip: 'Search',
+                  onPressed: () {
+                    setState(() => _isSearching = true);
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.sort),
+                  tooltip: 'Sort',
+                  onPressed: _showSortDialog,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_sweep_outlined),
+                  tooltip: 'Clear all tasks',
+                  onPressed: _confirmClearAll,
+                ),
+              ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _openAddTaskSheet,
@@ -112,7 +317,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+        children: <Widget>[
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: _StatsBar(
@@ -131,32 +336,46 @@ class _TaskListScreenState extends State<TaskListScreen> {
           ),
           const SizedBox(height: 8),
           Expanded(
-            child: visible.isEmpty
-                ? const _TaskListEmptyState()
-                : ListView.builder(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    itemCount: visible.length,
-                    itemBuilder: (BuildContext context, int index) {
-                      final Task task = visible[index];
-                      return Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (index > 0) const Divider(height: 1),
-                          TaskCard(
-                            key: ValueKey<String>(
-                              '${task.title}-${task.dueDate.millisecondsSinceEpoch}-$index',
-                            ),
-                            task: task,
-                            onDismissed: () {
-                              setState(() {
-                                _tasks.remove(task);
-                              });
-                            },
-                          ),
-                        ],
-                      );
-                    },
-                  ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: visible.isEmpty
+                  ? _TaskListEmptyState(
+                      emptyFromSearch: emptyFromSearch,
+                    )
+                  : Card(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: ListView.separated(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          itemCount: visible.length,
+                          separatorBuilder: (BuildContext context, int index) =>
+                              const Divider(height: 1),
+                          itemBuilder: (BuildContext context, int index) {
+                            final Task task = visible[index];
+                            final int taskIndex = _tasks.indexWhere(
+                              (Task t) => identical(t, task),
+                            );
+                            return TaskCard(
+                              key: ValueKey<String>(
+                                '${task.title}-${task.dueDate.millisecondsSinceEpoch}-$index',
+                              ),
+                              task: task,
+                              onTap: () {
+                                if (taskIndex >= 0) {
+                                  _openTaskDetail(task, taskIndex);
+                                }
+                              },
+                              onDismissed: () {
+                                setState(() {
+                                  _tasks.removeWhere((Task t) => identical(t, task));
+                                });
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+            ),
           ),
         ],
       ),
@@ -179,42 +398,92 @@ class _StatsBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final TextTheme textTheme = Theme.of(context).textTheme;
+    final int pct = (progress * 100).round();
 
     return Card(
-      elevation: 0,
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Total: $total', style: textTheme.titleSmall),
-                Text('Pending: $pending', style: textTheme.bodyMedium),
-                Text('Done: $completed', style: textTheme.bodyMedium),
+              children: <Widget>[
+                Expanded(
+                  child: _StatColumn(
+                    label: 'TOTAL',
+                    value: '$total',
+                  ),
+                ),
+                Expanded(
+                  child: _StatColumn(
+                    label: 'PENDING',
+                    value: pending.toString().padLeft(2, '0'),
+                  ),
+                ),
+                Expanded(
+                  child: _StatColumn(
+                    label: 'COMPLETED',
+                    value: '$completed',
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 12),
-            Text(
-              'Completion',
-              style: textTheme.labelMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                '$pct% DONE',
+                style: const TextStyle(
+                  color: AppColors.teal,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                ),
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 10),
             ClipRRect(
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(6),
               child: LinearProgressIndicator(
-                value: progress,
+                value: total == 0 ? 0.0 : progress.clamp(0.0, 1.0),
                 minHeight: 8,
+                backgroundColor: AppColors.cardStroke,
+                color: AppColors.teal,
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _StatColumn extends StatelessWidget {
+  const _StatColumn({
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: <Widget>[
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w900,
+                color: AppColors.headlineNavy,
+              ),
+        ),
+      ],
     );
   }
 }
@@ -231,7 +500,7 @@ class _FilterRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      children: [
+      children: <Widget>[
         Expanded(
           child: _FilterChip(
             label: 'All',
@@ -273,24 +542,25 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
-
     return Material(
-      color: selected ? scheme.primaryContainer : scheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(20),
+      color: selected ? AppColors.mintChip : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(22),
+        side: BorderSide(
+          color: selected ? AppColors.teal : AppColors.cardStroke,
+        ),
+      ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(22),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 10),
           child: Center(
             child: Text(
               label,
               style: TextStyle(
-                fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-                color: selected
-                    ? scheme.onPrimaryContainer
-                    : scheme.onSurfaceVariant,
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                color: selected ? AppColors.primaryDark : AppColors.bodyGrey,
               ),
             ),
           ),
@@ -301,7 +571,9 @@ class _FilterChip extends StatelessWidget {
 }
 
 class _TaskListEmptyState extends StatelessWidget {
-  const _TaskListEmptyState();
+  const _TaskListEmptyState({required this.emptyFromSearch});
+
+  final bool emptyFromSearch;
 
   @override
   Widget build(BuildContext context) {
@@ -310,238 +582,31 @@ class _TaskListEmptyState extends StatelessWidget {
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: [
+          children: <Widget>[
             Icon(
-              Icons.inbox_outlined,
+              emptyFromSearch ? Icons.search_off : Icons.inbox_outlined,
               size: 72,
-              color: Theme.of(context).colorScheme.outline,
+              color: AppColors.bodyGrey.withValues(alpha: 0.45),
             ),
             const SizedBox(height: 16),
             Text(
-              'No tasks here',
-              style: Theme.of(context).textTheme.titleLarge,
+              emptyFromSearch ? 'No matching tasks' : 'No tasks here',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: AppColors.headlineNavy,
+                  ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
-              'Try another filter or tap + to add a task.',
+              emptyFromSearch
+                  ? 'Try a different search or clear the filter.'
+                  : 'Try another filter or tap + to add a task.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    color: AppColors.bodyGrey,
                   ),
               textAlign: TextAlign.center,
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _AddTaskSheet extends StatefulWidget {
-  const _AddTaskSheet({required this.onSave});
-
-  final ValueChanged<Task> onSave;
-
-  @override
-  State<_AddTaskSheet> createState() => _AddTaskSheetState();
-}
-
-class _AddTaskSheetState extends State<_AddTaskSheet> {
-  static const List<String> _categories = <String>[
-    'School',
-    'Personal',
-    'Health',
-  ];
-  static const List<String> _priorities = <String>[
-    'High',
-    'Medium',
-    'Low',
-  ];
-
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final GlobalKey<FormFieldState<DateTime>> _dueDateFieldKey =
-      GlobalKey<FormFieldState<DateTime>>();
-  final TextEditingController _titleController = TextEditingController();
-  final TextEditingController _descriptionController = TextEditingController();
-
-  String? _category;
-  String? _priority;
-  DateTime? _dueDate;
-
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _descriptionController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _pickDueDate() async {
-    final DateTime initial = _dueDate ?? DateTime.now();
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
-    );
-    if (picked != null) {
-      setState(() => _dueDate = picked);
-      _dueDateFieldKey.currentState?.didChange(picked);
-    }
-  }
-
-  void _save() {
-    if (_formKey.currentState?.validate() != true) {
-      return;
-    }
-    final Task task = Task(
-      title: _titleController.text.trim(),
-      description: _descriptionController.text.trim(),
-      category: _category!,
-      priority: _priority!,
-      dueDate: _dueDate!,
-      isCompleted: false,
-    );
-    widget.onSave(task);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final MaterialLocalizations loc = MaterialLocalizations.of(context);
-
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'New task',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 20),
-              TextFormField(
-                controller: _titleController,
-                decoration: const InputDecoration(
-                  labelText: 'Title',
-                  border: OutlineInputBorder(),
-                ),
-                textCapitalization: TextCapitalization.sentences,
-                validator: (String? value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Required';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _descriptionController,
-                decoration: const InputDecoration(
-                  labelText: 'Description',
-                  border: OutlineInputBorder(),
-                  alignLabelWithHint: true,
-                ),
-                minLines: 3,
-                maxLines: 6,
-                keyboardType: TextInputType.multiline,
-                textCapitalization: TextCapitalization.sentences,
-                validator: (String? value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Required';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: _category,
-                decoration: const InputDecoration(
-                  labelText: 'Category',
-                  border: OutlineInputBorder(),
-                ),
-                items: _categories
-                    .map(
-                      (String c) => DropdownMenuItem<String>(
-                        value: c,
-                        child: Text(c),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (String? value) {
-                  setState(() => _category = value);
-                },
-                validator: (String? value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Required';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: _priority,
-                decoration: const InputDecoration(
-                  labelText: 'Priority',
-                  border: OutlineInputBorder(),
-                ),
-                items: _priorities
-                    .map(
-                      (String p) => DropdownMenuItem<String>(
-                        value: p,
-                        child: Text(p),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (String? value) {
-                  setState(() => _priority = value);
-                },
-                validator: (String? value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Required';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              FormField<DateTime>(
-                key: _dueDateFieldKey,
-                initialValue: null,
-                validator: (DateTime? value) {
-                  if (value == null) {
-                    return 'Required';
-                  }
-                  return null;
-                },
-                builder: (FormFieldState<DateTime> field) {
-                  return InkWell(
-                    onTap: _pickDueDate,
-                    borderRadius: BorderRadius.circular(4),
-                    child: InputDecorator(
-                      decoration: InputDecoration(
-                        labelText: 'Due date',
-                        border: const OutlineInputBorder(),
-                        errorText: field.errorText,
-                      ),
-                      child: Text(
-                        _dueDate == null
-                            ? 'Tap to select due date'
-                            : loc.formatMediumDate(_dueDate!),
-                        style: Theme.of(context).textTheme.bodyLarge,
-                      ),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 24),
-              FilledButton(
-                onPressed: _save,
-                child: const Text('Save Task'),
-              ),
-            ],
-          ),
         ),
       ),
     );

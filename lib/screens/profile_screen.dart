@@ -1,166 +1,252 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
+
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
+  static const List<_GoalItem> _goals = <_GoalItem>[
+    _GoalItem(
+      title: 'Maintain Excellent Grades',
+      subtitle:
+          'Targeting a 3.9 semester GPA as a personal goal.',
+      status: _GoalStatus.completed,
+    ),
+    _GoalItem(
+      title: 'Secure a Summer Internship',
+      subtitle:
+          'Gathering requirements and building a portfolio.',
+      status: _GoalStatus.inProgress,
+    ),
+    _GoalItem(
+      title: 'Complete my Final Year Project',
+      subtitle:
+          'Implementing an AI–IoT–blockchain based maternal vital signs monitoring system.',
+      status: _GoalStatus.pending,
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) {
-    const Color primaryGreen = Color(0xFF1B6B3A);
-    const Color lightGreen = Color(0xFFD6F5E3);
-    const Color greyText = Color(0xFF757575);
-
-    final List<Map<String, dynamic>> goals = [
-      {
-        'title': 'Maintain Excellent Grades',
-        'subtitle': "Targeting a 3.9 semester GPA as a personal goal.",
-        'isDone': false,
-      },
-      {
-        'title': 'Secure a Summer Internship',
-        'subtitle': 'Gathering Requirements and Building a Portfolio.',
-        'isDone': false,
-      },
-      {
-        'title': 'Complete my Final Year Project',
-        'subtitle': 'Implementing an AI-IOT-Blockchain based maternal Vital Signs Monitoring System.',
-        'isDone': false,
-      },
-    ];
+    final TextTheme textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // Avatar
-            const CircleAvatar(
-              radius: 48,
-              backgroundColor: lightGreen,
-              child: Text(
-                'CF',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: primaryGreen,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Name
-            const Text(
-              'Ciara Fomunung',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 6),
-
-            // ID and programme
-            const Text(
-              'ID: LMUI250690  •  BTech. Software Engineering',
-              style: TextStyle(fontSize: 12, color: greyText, letterSpacing: 0.5),
-            ),
-            const SizedBox(height: 16),
-
-            // Bio
-            const Text(
-              'Passionate about Cybersecurity and AI. '
-              'Currently focused on building a personal portfolio and improving my problem-solving skills. . '
-              'Also, I love to travel and explore new places.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: greyText, height: 1.5),
-            ),
-            const SizedBox(height: 28),
-
-            // Goals card
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF5F5F5),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Card header
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'SEMESTER GOALS',
-                        style: TextStyle(
-                          fontSize: 11,
-                          letterSpacing: 0.8,
-                          color: greyText,
+      backgroundColor: AppColors.pageBackground,
+      appBar: AppBar(
+        title: const Text('FocusPath'),
+        actions: <Widget>[
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () {},
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        children: <Widget>[
+          const SizedBox(height: 8),
+          Center(
+            child: SizedBox(
+              width: 112,
+              height: 112,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: <Widget>[
+                  Positioned.fill(
+                    child: CircleAvatar(
+                      backgroundColor: AppColors.mintChip,
+                      child: Text(
+                        'CF',
+                        style: textTheme.headlineMedium?.copyWith(
+                          color: AppColors.primaryDark,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
+                    ),
+                  ),
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: const BoxDecoration(
+                        color: AppColors.teal,
+                        shape: BoxShape.circle,
+                        boxShadow: <BoxShadow>[
+                          BoxShadow(
+                            color: Color(0x22000000),
+                            blurRadius: 4,
+                            offset: Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.verified,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Ciara Fomunung',
+            textAlign: TextAlign.center,
+            style: textTheme.headlineSmall?.copyWith(
+              color: AppColors.headlineNavy,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'ID: LMUI250690 · BTech. Software Engineering',
+            textAlign: TextAlign.center,
+            style: textTheme.labelSmall?.copyWith(
+              color: AppColors.labelCaps,
+              letterSpacing: 0.5,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Passionate about cybersecurity and AI. Currently focused on building '
+            'a personal portfolio and improving problem-solving skills. '
+            'I also love to travel and explore new places.',
+            textAlign: TextAlign.center,
+            style: textTheme.bodyMedium?.copyWith(
+              color: AppColors.bodyGrey,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 28),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      Text(
+                        'SEMESTER GOALS',
+                        style: textTheme.labelSmall?.copyWith(
+                          color: AppColors.labelCaps,
+                          letterSpacing: 0.9,
+                        ),
+                      ),
+                      const Spacer(),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
-                          color: lightGreen,
+                          color: AppColors.mintChip,
                           borderRadius: BorderRadius.circular(20),
                         ),
-                        child: const Text(
+                        child: Text(
                           '2nd Semester, 2026',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: primaryGreen,
+                          style: textTheme.labelSmall?.copyWith(
+                            color: AppColors.primaryDark,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.2,
                           ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
-
-                  // Goals list
-                  for (int i = 0; i < goals.length; i++) ...[
-                    if (i > 0) const Divider(color: Color(0xFFE0E0E0)),
-                    if (i > 0) const SizedBox(height: 8),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          goals[i]['isDone'] ? Icons.check_circle : Icons.radio_button_unchecked,
-                          color: primaryGreen,
-                          size: 26,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                goals[i]['title'],
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                goals[i]['subtitle'],
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: greyText,
-                                  height: 1.4,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
+                  const SizedBox(height: 18),
+                  for (int i = 0; i < _goals.length; i++) ...<Widget>[
+                    if (i > 0) ...<Widget>[
+                      const Divider(height: 24, color: AppColors.cardStroke),
+                    ],
+                    _GoalRow(goal: _goals[i]),
                   ],
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+enum _GoalStatus { completed, inProgress, pending }
+
+class _GoalItem {
+  const _GoalItem({
+    required this.title,
+    required this.subtitle,
+    required this.status,
+  });
+
+  final String title;
+  final String subtitle;
+  final _GoalStatus status;
+}
+
+class _GoalRow extends StatelessWidget {
+  const _GoalRow({required this.goal});
+
+  final _GoalItem goal;
+
+  @override
+  Widget build(BuildContext context) {
+    final TextTheme textTheme = Theme.of(context).textTheme;
+
+    late final IconData icon;
+    late final Color iconColor;
+
+    switch (goal.status) {
+      case _GoalStatus.completed:
+        icon = Icons.check_circle;
+        iconColor = AppColors.primaryDark;
+        break;
+      case _GoalStatus.inProgress:
+        icon = Icons.pending_outlined;
+        iconColor = AppColors.bodyGrey;
+        break;
+      case _GoalStatus.pending:
+        icon = Icons.radio_button_unchecked;
+        iconColor = AppColors.bodyGrey;
+        break;
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.only(top: 1),
+          child: Icon(icon, color: iconColor, size: 26),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                goal.title,
+                style: textTheme.titleSmall?.copyWith(
+                  color: AppColors.headlineNavy,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                goal.subtitle,
+                style: textTheme.bodyMedium?.copyWith(
+                  color: AppColors.bodyGrey,
+                  height: 1.45,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
