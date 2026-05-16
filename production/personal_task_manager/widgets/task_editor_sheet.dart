@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/task.dart';
 import '../theme/app_theme.dart';
 
+/// Bottom sheet for creating or editing a task (shared with list and detail flows).
 class TaskEditorSheet extends StatefulWidget {
   const TaskEditorSheet({
     super.key,
@@ -10,6 +11,7 @@ class TaskEditorSheet extends StatefulWidget {
     required this.onSave,
   });
 
+  /// When non-null, fields are pre-filled and [isCompleted] is preserved on save.
   final Task? initialTask;
   final ValueChanged<Task> onSave;
 
@@ -179,7 +181,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                initialValue: _category,
+                value: _category,
                 decoration: const InputDecoration(
                   hintText: 'Select category',
                 ),
@@ -208,7 +210,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                initialValue: _priority,
+                value: _priority,
                 decoration: const InputDecoration(
                   hintText: 'Select priority',
                 ),
